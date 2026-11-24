@@ -840,7 +840,7 @@ function AmountScreen({ title, subtitle, right, onClose, chips, amount, sub, met
   </div>;
   return (
     <div className={"anim-sheet fixed inset-0 z-[86] flex flex-col" + (closing ? " ph-exiting" : "")}
-      style={{ background: P.bg,
+      style={{ background: P.bg, isolation: "isolate", pointerEvents: closing ? "none" : "auto",
         transform: dy ? "translateY(" + dy + "px)" : undefined,
         transition: start.current == null ? "transform 260ms cubic-bezier(.32,.72,0,1)" : "none" }}>
       <div className="mx-auto flex h-full min-h-0 w-full flex-col overflow-hidden" style={{ maxWidth: M.screen, paddingTop: videoStyle ? "calc(15px + env(safe-area-inset-top))" : "calc(6px + env(safe-area-inset-top))" }}>
@@ -1011,16 +1011,27 @@ export default function Phantom() {
   const [sheet, setSheetValue] = useState(null);
   const [sheetLeaving, setSheetLeaving] = useState(false);
   const sheetExitTimer = React.useRef(null);
+  const sheetRef = React.useRef(null);
   useEffect(() => () => clearTimeout(sheetExitTimer.current), []);
   const setSheet = (next) => {
     clearTimeout(sheetExitTimer.current);
-    if (next === null && sheet && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    const current = sheetRef.current;
+    if (next === null && current && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       setSheetLeaving(true);
+      sheetRef.current = null;
       sheetExitTimer.current = setTimeout(() => { setSheetValue(null); setSheetLeaving(false); }, 220);
-    } else { setSheetLeaving(false); setSheetValue(next); }
+    } else {
+      sheetRef.current = next;
+      setSheetLeaving(false);
+      setSheetValue(next);
+    }
   };
   const [page, setPage] = useState(null);
   const [drawer, setDrawer] = useState(false);
+  // Keep presentation state mutually exclusive: a full-screen sheet replaces
+  // the radial menu / drawer, and opening either of those dismisses the sheet.
+  useEffect(() => { if (sheet) { setRadial(false); setDrawer(false); } }, [sheet]);
+  useEffect(() => { if (radial || drawer) setSheet(null); }, [radial, drawer]);
   const [accountList, setAccountList] = useState(false);
   const [active, setActive] = useState(null);
   const [side, setSide] = useState("buy");
@@ -1524,6 +1535,8 @@ export default function Phantom() {
   const dragStyle = {
     transform: sheetDy ? "translateY(" + sheetDy + "px)" : undefined,
     transition: sheetStart.current == null ? "transform 260ms cubic-bezier(.32,.72,0,1)" : "none",
+    isolation: "isolate",
+    pointerEvents: sheetLeaving ? "none" : "auto",
   };
 
   /* Move Home content without re-rendering the large holdings list each frame. */
@@ -1805,7 +1818,7 @@ export default function Phantom() {
           : [{ symbol: "CASH", name: "Cash", balance: w.cash }, ...allTokens.filter((t, i, arr) => t.sym !== (active?.sym || active?.t) && arr.findIndex(x => x.sym === t.sym) === i && (paymentPicker === "orderReceive" || (w.hold[t.sym] || 0) > 0)).map(t => ({ symbol: t.sym, name: t.name, balance: w.hold[t.sym] || 0 }))]}
         selected={paymentPicker === "fund" ? fundMethod : paymentPicker === "orderReceive" ? orderReceive : orderPayment}
         onSelect={value => { if (paymentPicker === "fund") setFundMethod(value); else if (paymentPicker === "orderReceive") setOrderReceive(value); else setOrderPayment(value); }} onClose={() => setPaymentPicker(null)}/>} 
-      {fundChoice && <div className="fixed inset-0 z-[100] flex items-end justify-center" style={{ background: "rgba(0,0,0,.68)" }} onClick={() => setFundChoice(false)}>
+      {fundChoice && <div className="fixed inset-0 z-[100] flex items-end justify-center" style={{ background: "#060608", isolation: "isolate", overflow: "hidden" }} onClick={() => setFundChoice(false)}>
         <div className="anim-sheet w-full" style={{ maxWidth: M.screen, background: "#101012", borderRadius: "26px 26px 0 0", padding: "18px 20px calc(24px + env(safe-area-inset-bottom))" }} onClick={e => e.stopPropagation()}>
           <div className="flex items-center justify-between" style={{ fontSize: 19, fontWeight: 700, marginBottom: 16 }}>Add Funds<button onClick={() => setFundChoice(false)} aria-label="Close Add Funds">{I.x(20)}</button></div>
           <button className="flex w-full items-center gap-4 text-left" style={{ background: P.card, padding: 16, borderRadius: 18, marginBottom: 8 }} onClick={() => { setBuyReturn({ entry, unit }); setFundChoice(false); setEntry(""); setSheet("fund"); }}>
@@ -1818,7 +1831,7 @@ export default function Phantom() {
           </button>
         </div>
       </div>}
-      {orderSettings && active && <div className="fixed inset-0 z-[100] flex items-end justify-center" style={{ background: "rgba(0,0,0,.68)" }} onClick={() => setOrderSettings(false)}>
+      {orderSettings && active && <div className="fixed inset-0 z-[100] flex items-end justify-center" style={{ background: "#060608", isolation: "isolate", overflow: "hidden" }} onClick={() => setOrderSettings(false)}>
         <div className="anim-sheet w-full" style={{ maxWidth: M.screen, background: "#101012", borderRadius: "26px 26px 0 0", padding: "18px 20px calc(24px + env(safe-area-inset-bottom))" }} onClick={e => e.stopPropagation()}>
           <div className="flex items-center justify-between" style={{ fontSize: 19, fontWeight: 700, marginBottom: 16 }}>Buy settings<button onClick={() => setOrderSettings(false)} aria-label="Close buy settings">{I.x(20)}</button></div>
           <div style={{ color: P.dim, fontSize: 14, marginBottom: 10 }}>Enter amount in</div>
@@ -1851,7 +1864,7 @@ export default function Phantom() {
               <Ava value={w.avatar} size={M.avatar} />
             </button>
             {["Home", "Trade", "Predict", "Explore"].map((t) => (
-              <button key={t} onClick={() => { haptic("light"); setTab(t); setPage(null); }} className="shrink-0 rounded-full"
+              <button key={t} onClick={() => { haptic("light"); setTab(t); setPage(null); setSheet(null); setRadial(false); setDrawer(false); }} className="shrink-0 rounded-full"
                 style={{ background: tab === t ? P.purple : P.pill, color: tab === t ? "#0B0B0D" : P.text,
                   fontSize: M.pillText, fontWeight: 700, height: M.pillH, paddingLeft: 17, paddingRight: 17,
                   boxShadow: "inset 0 0 0 0.5px " + (tab === t ? "rgba(255,255,255,0.18)" : P.hair) }}>
@@ -1904,11 +1917,28 @@ export default function Phantom() {
               })()}
             </div>
 
+            {/* primary actions — equal-width Send / Deposit pills */}
+            <div style={{ ...PAD, paddingTop: 22 }}>
+              <div className="flex w-full" style={{ gap: 11 }}>
+                <button onClick={() => { haptic("light"); setEntry(""); setSheet("sendto"); }}
+                  className="tap flex flex-1 items-center justify-center gap-2.5"
+                  style={{ background: "#141418", color: "#FFFFFF", height: 48, borderRadius: 999, fontSize: 16, fontWeight: 600 }}>
+                  {I.send(21, "#FFFFFF")}<span>Send</span>
+                </button>
+                <button onClick={() => { haptic("light"); setEntry(""); setSheet("fund"); }}
+                  className="tap flex flex-1 items-center justify-center gap-2.5"
+                  style={{ background: "#141418", color: "#FFFFFF", height: 48, borderRadius: 999, fontSize: 16, fontWeight: 600 }}>
+                  {I.plus(20, "#FFFFFF")}<span>Deposit</span>
+                </button>
+              </div>
+            </div>
+
             {/* cash */}
-            <div style={{ ...PAD, paddingTop: 31 }}>
+            <div style={{ ...PAD, paddingTop: 18 }}>
               <button onClick={() => { haptic("light"); setEntry(""); setSheet("fund"); }}
-                className="tap flex w-full items-center gap-3" style={{ background: "#121214", boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.05)", borderRadius: 24, height: 70, paddingLeft: 18, paddingRight: 17 }}>
-                {I.note(23)}
+                className="tap flex w-full items-center gap-3"
+                style={{ background: "#141418", borderRadius: 20, padding: "17px 17px" }}>
+                {I.note(24)}
                 <span className="flex-1 text-left" style={{ fontSize: 17, fontWeight: 600 }}>Cash</span>
                 <span style={{ ...HEAVY_NUM, fontSize: 17 }}>{money(w.cash)}</span>
               </button>
@@ -2436,15 +2466,14 @@ export default function Phantom() {
 
       {/* drawer */}
       {radial && (
-        <div className="fixed inset-0 z-[70]" style={{ background: "rgba(0,0,0,0.34)", animation: "fadeIn 180ms ease-out", backdropFilter: "blur(52px) saturate(150%)", WebkitBackdropFilter: "blur(52px) saturate(150%)" }} onClick={() => setRadial(false)}>
+        <div className="fixed inset-0 z-[70]" style={{ background: "#060608", animation: "fadeIn 180ms ease-out", isolation: "isolate", overflow: "hidden" }} onClick={() => setRadial(false)}>
           <div className="mx-auto flex h-full w-full flex-col justify-end"
             style={{ maxWidth: M.screen, paddingLeft: M.pad, paddingRight: M.pad, paddingBottom: "calc(28px + env(safe-area-inset-bottom))" }}
             onClick={(e) => e.stopPropagation()}>
             {[
-              { l: "BUY", i: I.buy(23), a: () => { setRadial(false); setBuyPicker(false); setBuyQty(""); setBuyMode("Token"); setSheet("buy"); } },
               { l: "Send", i: I.send(23), a: () => { setRadial(false); setEntry(""); setSheet("sendto"); } },
               { l: "Receive", i: I.qr(23), a: () => { setRadial(false); setSheet("receive"); } },
-              { l: "Add Cash", i: I.cash(23), a: () => { setRadial(false); setEntry(""); setSheet("fund"); } },
+              { l: "Deposit", i: I.cash(23), a: () => { setRadial(false); setEntry(""); setSheet("fund"); } },
               { l: "Trade", i: I.swap(23), a: () => { setRadial(false); setPayAmt(""); setSheet("swap"); } },
             ].map((r, i) => (
               <button key={r.l} onClick={r.a} className="anim-rise flex items-center justify-end tap"
@@ -2464,7 +2493,9 @@ export default function Phantom() {
       {/* drawer — always mounted so it can animate both ways */}
       <div className="fixed inset-0 z-[75]" style={{
         pointerEvents: drawer ? "auto" : "none",
-        background: drawer ? "rgba(0,0,0,.45)" : "rgba(0,0,0,0)",
+        background: drawer ? "#060608" : "rgba(0,0,0,0)",
+        isolation: "isolate",
+        overflow: "hidden",
         transition: "background 380ms cubic-bezier(.32,.72,0,1)" }}
         onClick={() => setDrawer(false)}>
         <div
@@ -2655,7 +2686,7 @@ export default function Phantom() {
 
       {/* token picker */}
       {picking && (
-        <div className="fixed inset-0 z-[92] flex items-end justify-center" style={{ background: "rgba(0,0,0,.6)" }} onClick={() => setPicking(null)}>
+        <div className="fixed inset-0 z-[92] flex items-end justify-center" style={{ background: "#060608", isolation: "isolate", overflow: "hidden" }} onClick={() => setPicking(null)}>
           <div className={"anim-sheet max-h-[75%] w-full overflow-y-auto" + (sheetLeaving ? " ph-exiting" : "")} {...dragDown} style={{ ...dragStyle, background: "#0E0E10", maxWidth: M.screen, borderRadius: "28px 28px 0 0", padding: "14px 20px 30px" }} onClick={(e) => e.stopPropagation()}>
             <Grab mb={12} />
             <div className="mb-3" style={{ fontSize: 20, fontWeight: 800 }}>Select token</div>
@@ -2897,7 +2928,7 @@ export default function Phantom() {
       )}
 
       {sheet === "pfp" && (
-        <div className="fixed inset-0 z-[92] flex items-end justify-center" style={{ background: "rgba(0,0,0,.6)" }} onClick={() => setSheet(null)}>
+        <div className="fixed inset-0 z-[92] flex items-end justify-center" style={{ background: "#060608", isolation: "isolate", overflow: "hidden" }} onClick={() => setSheet(null)}>
           <div className={"anim-sheet w-full" + (sheetLeaving ? " ph-exiting" : "")} {...dragDown} style={{ ...dragStyle, background: "#141416", maxWidth: M.screen, borderRadius: "28px 28px 0 0", padding: "12px 20px calc(24px + env(safe-area-inset-bottom))" }} onClick={(e) => e.stopPropagation()}>
             <Grab mb={12} />
             <div style={{ fontSize: 22, fontWeight: 800 }}>Profile picture</div>
@@ -3128,7 +3159,7 @@ export default function Phantom() {
       )}
 
       {sheet === "done" && done && (
-        <div className={"anim-sheet fixed inset-0 z-[88] flex flex-col" + (sheetLeaving ? " ph-exiting" : "")} style={{ background: P.bg }}>
+        <div className={"anim-sheet fixed inset-0 z-[88] flex flex-col" + (sheetLeaving ? " ph-exiting" : "")} style={{ background: P.bg, isolation: "isolate", pointerEvents: sheetLeaving ? "none" : "auto" }}>
           <div className="mx-auto flex h-full w-full flex-col items-center justify-center" style={{ maxWidth: M.screen, ...PAD }}>
             <div className="anim-pop flex items-center justify-center rounded-full" style={{ width: 92, height: 92, background: "rgba(74,222,108,0.14)" }}>
               <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" style={{ color: P.up }} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="m5 13 5 5L19 7" /></svg>
@@ -3154,7 +3185,7 @@ export default function Phantom() {
       )}
 
       {sheet === "txn" && tx && (
-        <div className="fixed inset-0 z-[84] flex items-end justify-center" style={{ background: "rgba(0,0,0,.6)" }} onClick={() => setSheet(null)}>
+        <div className="fixed inset-0 z-[84] flex items-end justify-center" style={{ background: "#060608", isolation: "isolate", overflow: "hidden" }} onClick={() => setSheet(null)}>
           <div className={"anim-sheet w-full" + (sheetLeaving ? " ph-exiting" : "")} {...dragDown} style={{ ...dragStyle, background: "#141416", maxWidth: M.screen, borderRadius: "28px 28px 0 0", padding: "12px 20px calc(24px + env(safe-area-inset-bottom))" }} onClick={(e) => e.stopPropagation()}>
             <Grab mb={12} />
             <div style={{ fontSize: 22, fontWeight: 800 }}>{tx.kind}</div>
@@ -3180,7 +3211,7 @@ export default function Phantom() {
       )}
 
       {sheet === "receive" && (
-        <div className="fixed inset-0 z-[80] flex items-end justify-center" style={{ background: "rgba(0,0,0,.6)" }} onClick={() => setSheet(null)}>
+        <div className="fixed inset-0 z-[80] flex items-end justify-center" style={{ background: "#060608", isolation: "isolate", overflow: "hidden" }} onClick={() => setSheet(null)}>
           <div className={"anim-sheet w-full" + (sheetLeaving ? " ph-exiting" : "")} {...dragDown} style={{ ...dragStyle, background: "#0B0B0D", maxWidth: M.screen, borderRadius: "28px 28px 0 0", padding: "12px 20px calc(24px + env(safe-area-inset-bottom))" }} onClick={(e) => e.stopPropagation()}>
             <Grab mb={16} />
             <div style={{ fontSize: 22, fontWeight: 800 }}>Receive</div>
@@ -3225,7 +3256,7 @@ export default function Phantom() {
       )}
 
       {sheet === "bet" && betOn && (
-        <div className="fixed inset-0 z-[80] flex items-end justify-center" style={{ background: "rgba(0,0,0,.6)" }} onClick={() => setSheet(null)}>
+        <div className="fixed inset-0 z-[80] flex items-end justify-center" style={{ background: "#060608", isolation: "isolate", overflow: "hidden" }} onClick={() => setSheet(null)}>
           <div className={"anim-sheet w-full" + (sheetLeaving ? " ph-exiting" : "")} {...dragDown} style={{ ...dragStyle, background: "#0E0E10", maxWidth: M.screen, borderRadius: "28px 28px 0 0", padding: "14px 20px 30px" }} onClick={(e) => e.stopPropagation()}>
             <Grab mb={12} />
             <div className="text-center" style={{ fontSize: 20, fontWeight: 800 }}>{betOn.label}</div><button className="ph-unit-toggle" onClick={() => setChatRoom({ id: "prediction:" + betOn.market, symbol: "BTC", name: betOn.market, type: "Prediction", bet: { ...betOn } })}>Join market chat · Demo</button>
