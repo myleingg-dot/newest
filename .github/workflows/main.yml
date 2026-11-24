@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   ipa:
-    runs-on: macos-14
+    runs-on: macos-latest
     env:
       APP_ID: com.demo.phantomdemo
       APP_NAME: PhantomDemo
