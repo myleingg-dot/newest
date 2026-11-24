@@ -1,4 +1,4 @@
-# Phantom Demo — Build 147
+# PhantomDemo — Build 147
 
 A local wallet UI simulation. Balances, trades, funding and chat messages are demo data. Market prices and available historical charts come from external data providers.
 

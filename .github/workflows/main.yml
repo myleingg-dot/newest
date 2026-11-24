@@ -1,4 +1,4 @@
-name: Build Phantom Demo IPA
+name: Build PhantomDemo IPA
 
 on:
   workflow_dispatch:
@@ -11,32 +11,43 @@ permissions:
 jobs:
   ipa:
     runs-on: macos-14
+    env:
+      APP_ID: com.demo.phantomdemo
+      APP_NAME: PhantomDemo
+      IPA_NAME: PhantomDemo.ipa
+
     steps:
       - uses: actions/checkout@v4
 
-      - name: Verify web assets are present
+      - name: Verify prebuilt web assets are committed
         run: |
           test -f www/index.html || { echo "::error::www/index.html missing - commit the www folder first"; exit 1; }
+          test -f www/app.js || { echo "::error::www/app.js missing - run npm run build and commit www"; exit 1; }
+          test -f www/styles.css || { echo "::error::www/styles.css missing - run npm run build and commit www"; exit 1; }
+          test -f www/icon-1024.png || { echo "::error::www/icon-1024.png missing - required for AppIcon"; exit 1; }
           ls -la www
 
       - uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      - name: Scaffold Capacitor project
+      - name: Install Capacitor dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Verify committed Capacitor identity
         run: |
-          npm init -y
-          npm i @capacitor/core@6 @capacitor/cli@6 @capacitor/ios@6 @capacitor/haptics@6 @capacitor/local-notifications@6
-          cat > capacitor.config.json <<'EOF'
-          {
-            "appId": "com.demo.phantom122",
-            "appName": "Phantom Demo",
-            "webDir": "www",
-            "server": { "iosScheme": "app" },
-            "ios": { "contentInset": "never" }
-          }
-          EOF
-          npx cap add ios
+          node -e '
+            const c = require("./capacitor.config.json");
+            if (c.appId !== process.env.APP_ID || c.appName !== process.env.APP_NAME) {
+              console.error("capacitor.config.json does not match workflow identity", c.appId, c.appName);
+              process.exit(1);
+            }
+            console.log("Identity OK:", c.appId, c.appName);
+          '
+
+      - name: Scaffold / sync Capacitor iOS project
+        run: |
+          test -d ios || npx cap add ios
           npx cap sync ios
 
       - name: Apply supplied app icon to iOS project
@@ -58,16 +69,18 @@ jobs:
           (target / 'Contents.json').write_text(json.dumps(contents, indent=2) + '\n')
           PY
 
-      - name: Lock orientation to portrait
+      - name: Lock display name and portrait orientation
         run: |
           PLIST=ios/App/App/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName $APP_NAME" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleName $APP_NAME" "$PLIST" || true
           /usr/libexec/PlistBuddy -c "Delete :UISupportedInterfaceOrientations" "$PLIST" || true
           /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations array" "$PLIST"
           /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations:0 string UIInterfaceOrientationPortrait" "$PLIST"
           /usr/libexec/PlistBuddy -c "Delete :UISupportedInterfaceOrientations~ipad" "$PLIST" || true
           /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations~ipad array" "$PLIST"
           /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations~ipad:0 string UIInterfaceOrientationPortrait" "$PLIST"
-          /usr/libexec/PlistBuddy -c "Print" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleDisplayName" "$PLIST"
 
       - name: Build unsigned archive
         run: |
@@ -77,31 +90,38 @@ jobs:
             -scheme App \
             -configuration Release \
             -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
             -derivedDataPath build \
+            -archivePath "$PWD/build/App.xcarchive" \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
             ONLY_ACTIVE_ARCH=NO \
-            build
+            archive
 
-      - name: Package into Phantom Demo.ipa
+      - name: Package into ${{ env.IPA_NAME }}
         run: |
-          APP=$(find ios/App/build/Build/Products/Release-iphoneos -maxdepth 1 -name "*.app" | head -1)
+          APP=$(find ios/App/build/App.xcarchive/Products/Applications -maxdepth 1 -name "*.app" | head -1)
           echo "app bundle: $APP"
-          test -n "$APP" || { echo "::error::no .app produced"; exit 1; }
-          rm -rf Payload && mkdir Payload
+          test -n "$APP" || { echo "::error::no .app produced by xcodebuild archive"; exit 1; }
+          rm -rf Payload "$IPA_NAME"
+          mkdir Payload
           cp -R "$APP" Payload/
-          zip -qry "Phantom Demo.ipa" Payload
-          ls -la "Phantom Demo.ipa"
+          zip -qry "$IPA_NAME" Payload
+          ls -lh "$IPA_NAME"
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
         with:
-          name: Phantom-Demo-IPA
-          path: Phantom Demo.ipa
+          name: PhantomDemo-IPA
+          path: ${{ env.IPA_NAME }}
+          if-no-files-found: error
 
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: build-147
-          name: Phantom Demo
-          files: Phantom Demo.ipa
+          tag_name: ipa-${{ github.run_number }}-${{ github.run_attempt }}
+          name: PhantomDemo IPA (run ${{ github.run_number }})
+          files: ${{ env.IPA_NAME }}
+          fail_on_unmatched_files: true
+          generate_release_notes: true

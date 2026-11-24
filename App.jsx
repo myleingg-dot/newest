@@ -7,6 +7,15 @@ const SPLASH = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAxIAAAY6CAIAAADIYc
 
 const BUILD = 147;
 
+// Heavy, rounded, tabular numerals for balances and other numeric readouts.
+// Matches the thick geometric/rounded weight used by the reference wallet UI.
+const HEAVY_NUM = {
+  fontFamily: 'ui-rounded, "SF Pro Rounded", "Nunito", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+  fontWeight: 900,
+  letterSpacing: "-0.03em",
+  fontVariantNumeric: "tabular-nums",
+};
+
 const M = {
   screen: 393, pad: 20, gap: 10, radius: 20,
   avatar: 40, pillH: 40, pillText: 17,
@@ -489,6 +498,7 @@ const I = {
   arrow: (s, c) => <svg width={s || 18} height={s || 18} viewBox="0 0 24 24" fill="none" stroke={c || P.dim} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M7 17 17 7M9 7h8v8" /></svg>,
   sliders: (s, c) => <svg width={s || 18} height={s || 18} viewBox="0 0 24 24" fill="none" stroke={c || "#fff"} strokeWidth="2" strokeLinecap="round"><path d="M6 4v6m0 4v6M12 4v10m0 4v2M18 4v2m0 4v10M4 12h4M10 16h4M16 8h4" /></svg>,
   plus: (s, c) => <svg width={s || 25} height={s || 25} viewBox="0 0 24 24" fill="none" stroke={c || "#0B0B0D"} strokeWidth="2.6" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>,
+  buy: (s, c) => <svg width={s || 22} height={s || 22} viewBox="0 0 24 24" fill="none" stroke={c || "#0B0B0D"} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v12m0-12 5 5m-5-5-5 5M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" /></svg>,
   back: (s, c) => <svg width={s || 22} height={s || 22} viewBox="0 0 24 24" fill="none" stroke={c || "#fff"} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="m15 5-7 7 7 7" /></svg>,
   note: (s, c) => <svg width={s || 22} height={s || 22} viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="2" y="5.5" width="20" height="13" rx="2" fill={c || "#C9C9CE"} /><ellipse cx="12" cy="12" rx="2.8" ry="3.5" fill="#111113" /><path d="M5 8.5h1.5M5 15.5h1.5M17.5 8.5H19M17.5 15.5H19" stroke="#111113" strokeWidth="1.7" strokeLinecap="round" /></svg>,
   navHome: (s, c) => (
@@ -1030,6 +1040,11 @@ export default function Phantom() {
   const [fundMethod, setFundMethod] = useState("Debit card");
   const [fundChoice, setFundChoice] = useState(false);
   const [buyReturn, setBuyReturn] = useState(null);
+  // Local BUY balance editor state (no signing, no transfers).
+  const [buySym, setBuySym] = useState("SOL");
+  const [buyQty, setBuyQty] = useState("");
+  const [buyMode, setBuyMode] = useState("Token");
+  const [buyPicker, setBuyPicker] = useState(false);
   const [orderSettings, setOrderSettings] = useState(false);
   const [paymentPicker, setPaymentPicker] = useState(null);
   const [tradeMenu, setTradeMenu] = useState(false);
@@ -1871,17 +1886,17 @@ export default function Phantom() {
               <button onClick={() => setDrawer(true)} className="flex items-center gap-1.5">
                 <span style={{ fontSize: 17, fontWeight: 600, color: "#A8A8AD" }}>{w.handle}</span>{I.caret(16, "#A8A8AD")}
               </button>
-              <div className="flex items-center gap-2" style={{ fontSize: 48, fontWeight: 500, letterSpacing: "-0.02em", lineHeight: 1.06, fontVariantNumeric: "tabular-nums" }}>
+              <div className="flex items-center gap-2" style={{ ...HEAVY_NUM, fontSize: 48, lineHeight: 1.06 }}>
                 <span>{money(total)}</span>
               </div>
               {(() => {
                 const up = dayDelta >= 0;
                 return (
                   <div className="flex items-center gap-2" style={{ marginTop: 8 }}>
-                    <span style={{ color: up ? P.up : P.down, fontSize: 18, fontWeight: 500 }}>
+                    <span style={{ ...HEAVY_NUM, color: up ? P.up : P.down, fontSize: 18 }}>
                       {up ? "+" : "−"}{money(Math.abs(dayDelta))}
                     </span>
-                    <span className="rounded-md" style={{ background: up ? "#05EA52" : P.down, color: up ? "#04210E" : "#FFFFFF", fontSize: 16, fontWeight: 600, lineHeight: "25px", padding: "0 7px", borderRadius: 6 }}>
+                    <span className="rounded-md" style={{ ...HEAVY_NUM, background: up ? "#05EA52" : P.down, color: up ? "#04210E" : "#FFFFFF", fontSize: 16, padding: "0 7px", lineHeight: "25px", borderRadius: 6 }}>
                       {up ? "+" : "−"}{Math.abs(dayPct).toFixed(2)}%
                     </span>
                   </div>
@@ -1895,7 +1910,7 @@ export default function Phantom() {
                 className="tap flex w-full items-center gap-3" style={{ background: "#121214", boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.05)", borderRadius: 24, height: 70, paddingLeft: 18, paddingRight: 17 }}>
                 {I.note(23)}
                 <span className="flex-1 text-left" style={{ fontSize: 17, fontWeight: 600 }}>Cash</span>
-                <span style={{ fontSize: 17, fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>{money(w.cash)}</span>
+                <span style={{ ...HEAVY_NUM, fontSize: 17 }}>{money(w.cash)}</span>
               </button>
             </div>
 
@@ -1917,8 +1932,8 @@ export default function Phantom() {
                         <div className="truncate" style={{ color: P.dim, fontSize: 16, marginTop: 3 }}>{t.amt.toLocaleString("en-US", { maximumFractionDigits: 2 })} {t.sym}</div>
                       </div>
                       <div className="text-right">
-                        <div style={{ fontSize: 18, fontWeight: 500, fontVariantNumeric: "tabular-nums" }}>{money(t.value)}</div>
-                        <div style={{ color: dChange >= 0 ? P.up : P.down, fontSize: 16, fontWeight: 500, marginTop: 3, fontVariantNumeric: "tabular-nums" }}>
+                        <div style={{ ...HEAVY_NUM, fontSize: 18 }}>{money(t.value)}</div>
+                        <div style={{ ...HEAVY_NUM, color: dChange >= 0 ? P.up : P.down, fontSize: 16, marginTop: 3 }}>
                           {dChange >= 0 ? "+" : "−"}{money(Math.abs(dChange))}
                         </div>
                       </div>
@@ -1945,8 +1960,8 @@ export default function Phantom() {
                           <div className="truncate" style={{ color: P.dim, fontSize: 16, marginTop: 3 }}>{sh(r.qty)} {r.t}</div>
                         </div>
                         <div className="text-right">
-                          <div style={{ fontSize: 18, fontWeight: 500, fontVariantNumeric: "tabular-nums" }}>{money(r.value)}</div>
-                          <div style={{ color: dChange >= 0 ? P.up : P.down, fontSize: 16, fontWeight: 500, marginTop: 3, fontVariantNumeric: "tabular-nums" }}>
+                          <div style={{ ...HEAVY_NUM, fontSize: 18 }}>{money(r.value)}</div>
+                          <div style={{ ...HEAVY_NUM, color: dChange >= 0 ? P.up : P.down, fontSize: 16, marginTop: 3 }}>
                             {dChange >= 0 ? "+" : "−"}{money(Math.abs(dChange))}
                           </div>
                         </div>
@@ -2004,8 +2019,8 @@ export default function Phantom() {
                       <div style={{ color: P.dim, fontSize: 17 }}>${t.mc} MC</div>
                     </div>
                     <div className="text-right">
-                      <div style={{ fontSize: 19, fontWeight: 700 }}>{money(t.price, t.price > 100 ? 0 : 2)}</div>
-                      <div style={{ color: t.chg >= 0 ? P.up : P.down, fontSize: 17, fontWeight: 600 }}>{pctStr(t.chg)}</div>
+                      <div style={{ ...HEAVY_NUM, fontSize: 19 }}>{money(t.price, t.price > 100 ? 0 : 2)}</div>
+                      <div style={{ ...HEAVY_NUM, color: t.chg >= 0 ? P.up : P.down, fontSize: 17 }}>{pctStr(t.chg)}</div>
                     </div>
                   </button>
                 );
@@ -2045,8 +2060,8 @@ export default function Phantom() {
                       <div className="truncate" style={{ color: P.dim, fontSize: 17 }}>${t.mc} MC · {since(t.born)}</div>
                     </div>
                     <div className="text-right">
-                      <div style={{ fontSize: 19, fontWeight: 700 }}>{tinyPrice(t.price)}</div>
-                      <div style={{ color: t.chg >= 0 ? P.up : P.down, fontSize: 17, fontWeight: 700 }}>{pctStr(t.chg)}</div>
+                      <div style={{ ...HEAVY_NUM, fontSize: 19 }}>{tinyPrice(t.price)}</div>
+                      <div style={{ ...HEAVY_NUM, color: t.chg >= 0 ? P.up : P.down, fontSize: 17 }}>{pctStr(t.chg)}</div>
                     </div>
                   </button>
                 ))}
@@ -2066,8 +2081,8 @@ export default function Phantom() {
                     <div className="relative"><Logo id={s} size={40} /><Rank n={i + 1} /></div>
                     <span className="flex-1" style={{ fontSize: 19, fontWeight: 800 }}>{s}</span>
                     <div className="text-right">
-                      <div style={{ fontSize: 19, fontWeight: 700 }}>{money(t.price, t.price > 100 ? 0 : 2)}</div>
-                      <div style={{ color: t.chg >= 0 ? P.up : P.down, fontSize: 17, fontWeight: 600 }}>{pctStr(t.chg)}</div>
+                      <div style={{ ...HEAVY_NUM, fontSize: 19 }}>{money(t.price, t.price > 100 ? 0 : 2)}</div>
+                      <div style={{ ...HEAVY_NUM, color: t.chg >= 0 ? P.up : P.down, fontSize: 17 }}>{pctStr(t.chg)}</div>
                     </div>
                   </button>
                 );
@@ -2185,8 +2200,8 @@ export default function Phantom() {
                     <div style={{ color: P.dim, fontSize: M.rowSub }}>{t.f}</div>
                   </div>
                   <div className="text-right">
-                    <div style={{ color: P.up, fontSize: M.rowVal, fontWeight: 700 }}>+{money(t.pnl)}</div>
-                    <div style={{ color: P.dim, fontSize: M.rowPct, fontWeight: 700 }}>+{t.pct}%</div>
+                    <div style={{ ...HEAVY_NUM, color: P.up, fontSize: M.rowVal }}>+{money(t.pnl)}</div>
+                    <div style={{ ...HEAVY_NUM, color: P.dim, fontSize: M.rowPct }}>+{t.pct}%</div>
                   </div>
                 </button>
               ))}
@@ -2299,7 +2314,7 @@ export default function Phantom() {
                 <div className="flex items-start gap-2.5">
                   <Logo id="BTC" size={40} />
                   <div className="flex-1">
-                    <div style={{ fontSize: 21, fontWeight: 800 }}>{money(64152.02 + Math.sin(tick) * 6)}</div>
+                    <div style={{ ...HEAVY_NUM, fontSize: 21 }}>{money(64152.02 + Math.sin(tick) * 6)}</div>
                     <div style={{ color: P.dim, fontSize: M.rowSub }}>Target $64,158.23</div>
                   </div>
                   <div style={{ fontSize: 19, fontWeight: 700 }}>01:02</div>
@@ -2426,6 +2441,7 @@ export default function Phantom() {
             style={{ maxWidth: M.screen, paddingLeft: M.pad, paddingRight: M.pad, paddingBottom: "calc(28px + env(safe-area-inset-bottom))" }}
             onClick={(e) => e.stopPropagation()}>
             {[
+              { l: "BUY", i: I.buy(23), a: () => { setRadial(false); setBuyPicker(false); setBuyQty(""); setBuyMode("Token"); setSheet("buy"); } },
               { l: "Send", i: I.send(23), a: () => { setRadial(false); setEntry(""); setSheet("sendto"); } },
               { l: "Receive", i: I.qr(23), a: () => { setRadial(false); setSheet("receive"); } },
               { l: "Add Cash", i: I.cash(23), a: () => { setRadial(false); setEntry(""); setSheet("fund"); } },
@@ -2519,8 +2535,8 @@ export default function Phantom() {
                   <div><div style={{ fontSize: 21, fontWeight: 800 }}>@{w.handle}</div><div style={{ color: P.dim, fontSize: M.rowSub }}>{ADDR.slice(0, 6)}…{ADDR.slice(-4)}</div></div>
                 </div>
                 <div className="mt-4 grid grid-cols-2 gap-2.5">
-                  <div className="rounded-2xl p-3.5" style={{ background: P.card2 }}><div style={{ color: P.dim, fontSize: 13 }}>Net worth</div><div style={{ fontSize: 18, fontWeight: 800 }}>{money(total, 0)}</div></div>
-                  <div className="rounded-2xl p-3.5" style={{ background: P.card2 }}><div style={{ color: P.dim, fontSize: 13 }}>Trades</div><div style={{ fontSize: 18, fontWeight: 800 }}>{w.log.length}</div></div>
+                  <div className="rounded-2xl p-3.5" style={{ background: P.card2 }}><div style={{ color: P.dim, fontSize: 13 }}>Net worth</div><div style={{ ...HEAVY_NUM, fontSize: 18 }}>{money(total, 0)}</div></div>
+                  <div className="rounded-2xl p-3.5" style={{ background: P.card2 }}><div style={{ color: P.dim, fontSize: 13 }}>Trades</div><div style={{ ...HEAVY_NUM, fontSize: 18 }}>{w.log.length}</div></div>
                 </div>
                 <button onClick={copyAddr} className="mt-3.5 w-full rounded-full" style={{ background: P.purple, color: "#0B0B0D", fontSize: 16, fontWeight: 800, height: 44 }}>Copy address</button>
               </Card>
@@ -2604,7 +2620,7 @@ export default function Phantom() {
                               <div className="truncate" style={{ color: P.dim, fontSize: M.rowSub }}>{a.detail}</div>
                             </div>
                             <div className="text-right">
-                              {a.amount != null && <div style={{ fontSize: M.rowVal, fontWeight: 700, color: a.amount > 0 ? P.up : P.text }}>{a.amount > 0 ? "+" : "−"}{money(Math.abs(a.amount))}</div>}
+                              {a.amount != null && <div style={{ ...HEAVY_NUM, fontSize: M.rowVal, color: a.amount > 0 ? P.up : P.text }}>{a.amount > 0 ? "+" : "−"}{money(Math.abs(a.amount))}</div>}
                               <div style={{ color: P.dim, fontSize: 14 }}>
                                 {a.at ? new Date(a.at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : a.ago}
                               </div>
@@ -2741,10 +2757,10 @@ export default function Phantom() {
                       </>
                     ) : (
                       <>
-                        <div style={{ fontSize: 30, fontWeight: 800, letterSpacing: "-0.02em", fontVariantNumeric: "tabular-nums" }}>
+                        <div style={{ ...HEAVY_NUM, fontSize: 30 }}>
                           {px >= 1 ? money(px) : tinyPrice(px)}
                         </div>
-                        <div style={{ color: chg >= 0 ? P.up : P.down, fontSize: 17, fontWeight: 700 }}>
+                        <div style={{ ...HEAVY_NUM, color: chg >= 0 ? P.up : P.down, fontSize: 17 }}>
                           {chg >= 0 ? "+" : "−"}{money(Math.abs(px * (chg / 100)))} ({pctStr(chg)})
                         </div>
                       </>
@@ -2809,11 +2825,11 @@ export default function Phantom() {
                             </div>
                             <div className="mt-3.5 flex items-end justify-between gap-3">
                               <div className="min-w-0">
-                                <div className="truncate" style={{ fontSize: 26, fontWeight: 700, letterSpacing: "-0.02em", fontVariantNumeric: "tabular-nums" }}>{money(val)}</div>
+                                <div className="truncate" style={{ ...HEAVY_NUM, fontSize: 26 }}>{money(val)}</div>
                                 <div className="mt-0.5 truncate" style={{ color: P.dim, fontSize: 16 }}>{sh(qty)} {active.sym || active.t}</div>
                               </div>
                               <div className="shrink-0 text-right">
-                                <div style={{ fontSize: 26, fontWeight: 700, letterSpacing: "-0.02em", color: ret >= 0 ? P.up : P.down, fontVariantNumeric: "tabular-nums" }}>
+                                <div style={{ ...HEAVY_NUM, fontSize: 26, color: ret >= 0 ? P.up : P.down }}>
                                   {ret >= 0 ? "" : "−"}{money(Math.abs(ret))}
                                 </div>
                                 <div className="mt-0.5" style={{ color: P.dim, fontSize: 16 }}>Today's Return</div>
@@ -2916,6 +2932,107 @@ export default function Phantom() {
                 placeholder="＋"
                 className="rounded-full text-center"
                 style={{ width: 48, height: 48, background: P.card, color: P.text, border: "none", outline: "none", fontSize: 22 }} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {sheet === "buy" && (
+        <div className={"anim-sheet fixed inset-0 z-[88] flex flex-col" + (sheetLeaving ? " ph-exiting" : "")} style={{ background: P.bg, ...dragStyle }} {...dragDown}>
+          <div className="mx-auto flex h-full w-full flex-col" style={{ maxWidth: M.screen, paddingTop: "calc(8px + env(safe-area-inset-top))" }}>
+            <Grab mb={8} />
+            <div className="flex items-center gap-3.5" style={{ ...PAD, paddingTop: 4 }}>
+              <button onClick={() => setSheet(null)} className="tap flex items-center justify-center rounded-full" style={{ width: 40, height: 40, background: P.pill }}>{I.x(20, "#FFFFFF")}</button>
+              <span style={{ fontSize: 22, fontWeight: 800 }}>BUY · Edit balance</span>
+              <span className="ml-auto" style={{ color: P.dim, fontSize: 14, fontWeight: 700 }}>Local only</span>
+            </div>
+
+            <div style={{ ...PAD, paddingTop: 18 }}>
+              <div className="mb-4 flex gap-1 rounded-full p-1" style={{ background: P.card }}>
+                {["Token", "Cash"].map((m) => (
+                  <button key={m} onClick={() => { setBuyMode(m); setBuyPicker(false); setBuyQty(""); }} className="flex-1 rounded-full"
+                    style={{ background: buyMode === m ? "#EFEFF2" : "transparent", color: buyMode === m ? "#0B0B0D" : P.text, height: 42, fontSize: 17, fontWeight: 800 }}>
+                    {m}
+                  </button>
+                ))}
+              </div>
+
+              {buyMode === "Token" ? (
+                <>
+                  <button onClick={() => setBuyPicker(!buyPicker)} className="tap flex w-full items-center gap-3 rounded-2xl" style={{ background: P.card, padding: 14 }}>
+                    <Logo id={buySym} size={40} />
+                    <span className="min-w-0 flex-1 truncate text-left" style={{ fontSize: 18, fontWeight: 800 }}>{buySym}</span>
+                    <span style={{ color: P.dim, fontSize: 15, fontVariantNumeric: "tabular-nums" }}>{sh(w.hold[buySym] || 0)} held</span>
+                    {I.chev(17, P.dim)}
+                  </button>
+                  {buyPicker && (
+                    <div className="mt-2 max-h-64 overflow-y-auto rounded-2xl" style={{ background: P.card }}>
+                      {allTokens.map((t) => (
+                        <button key={t.sym} onClick={() => { setBuySym(t.sym); setBuyPicker(false); setBuyQty(""); }}
+                          className="flex w-full items-center gap-2.5 text-left tap" style={{ padding: "10px 14px" }}>
+                          <Logo id={t.sym} size={32} />
+                          <span className="min-w-0 flex-1 truncate" style={{ fontSize: 16, fontWeight: 700 }}>{t.name} · {t.sym}</span>
+                          <span style={{ color: P.dim, fontSize: 14, fontVariantNumeric: "tabular-nums" }}>{money(t.price)}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <div className="mt-5" style={{ ...HEAVY_NUM, fontSize: 40, color: buyQty === "" ? "#6E6E73" : P.text, lineHeight: 1.1 }}>
+                    <input value={buyQty} onChange={(e) => setBuyQty(e.target.value.replace(/[^0-9.]/g, ""))}
+                      inputMode="decimal" placeholder="0.00" aria-label="Token quantity"
+                      style={{ width: "100%", background: "transparent", border: "none", outline: "none", color: "inherit", font: "inherit", letterSpacing: "inherit", padding: 0 }} />
+                  </div>
+                  <div className="mt-2" style={{ color: P.dim, fontSize: 16 }}>
+                    ≈ {money((parseFloat(buyQty) || 0) * (allTokens.find((t) => t.sym === buySym)?.price || 0))}
+                  </div>
+                  <div className="mt-4 flex gap-2">
+                    {[["+1", () => setBuyQty(String((parseFloat(buyQty) || 0) + 1))],
+                      ["+10", () => setBuyQty(String((parseFloat(buyQty) || 0) + 10))],
+                      ["+100", () => setBuyQty(String((parseFloat(buyQty) || 0) + 100))],
+                      ["×2", () => setBuyQty(String((parseFloat(buyQty) || 0) * 2))],
+                      ["Copy", () => setBuyQty(String(w.hold[buySym] || 0))]].map(([l, fn]) => (
+                      <button key={l} onClick={fn} className="tap flex-1 rounded-full" style={{ background: P.card2, height: 38, fontSize: 14, fontWeight: 800, color: P.text }}>{l}</button>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div style={{ ...HEAVY_NUM, fontSize: 40, color: buyQty === "" ? "#6E6E73" : P.text, lineHeight: 1.1 }}>
+                    <span style={{ marginRight: 6 }}>$</span>
+                    <input value={buyQty} onChange={(e) => setBuyQty(e.target.value.replace(/[^0-9.]/g, ""))}
+                      inputMode="decimal" placeholder="0.00" aria-label="Cash balance"
+                      style={{ width: "calc(100% - 20px)", background: "transparent", border: "none", outline: "none", color: "inherit", font: "inherit", letterSpacing: "inherit", padding: 0 }} />
+                  </div>
+                  <div className="mt-2" style={{ color: P.dim, fontSize: 16 }}>Current cash {money(w.cash)}</div>
+                  <div className="mt-4 flex gap-2">
+                    {[["+$100", 100], ["+$500", 500], ["+$1K", 1000]].map(([l, n]) => (
+                      <button key={l} onClick={() => setBuyQty(String((parseFloat(buyQty) || 0) + n))} className="tap flex-1 rounded-full"
+                        style={{ background: P.card2, height: 38, fontSize: 14, fontWeight: 800, color: P.text }}>{l}</button>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              <div className="mt-5 rounded-2xl" style={{ background: P.card, padding: 14 }}>
+                <div className="flex items-center justify-between">
+                  <span style={{ color: P.dim, fontSize: 15 }}>New {buyMode === "Token" ? buySym + " balance" : "cash balance"}</span>
+                  <span style={{ ...HEAVY_NUM, fontSize: 18 }}>
+                    {buyMode === "Token" ? sh(Math.max(0, parseFloat(buyQty) || 0)) + " " + buySym : money(Math.max(0, parseFloat(buyQty) || 0))}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-auto" style={{ ...PAD, paddingBottom: "calc(18px + env(safe-area-inset-bottom))" }}>
+              <button onClick={() => {
+                const q = Math.max(0, parseFloat(buyQty) || 0);
+                if (buyMode === "Token") patch((x) => ({ hold: { ...x.hold, [buySym]: q } }));
+                else patch(() => ({ cash: q }));
+                flash((buyMode === "Token" ? buySym : "Cash") + " balance updated");
+                setBuyQty(""); setSheet(null);
+              }} className="tap w-full rounded-full" style={{ background: P.purple, color: "#0B0B0D", height: 54, fontSize: 18, fontWeight: 800 }}>
+                Save balance
+              </button>
             </div>
           </div>
         </div>
@@ -3043,7 +3160,7 @@ export default function Phantom() {
             <div style={{ fontSize: 22, fontWeight: 800 }}>{tx.kind}</div>
             <div className="mt-0.5" style={{ color: P.dim, fontSize: 16 }}>{tx.detail}</div>
             {tx.amount != null && (
-              <div className="mt-4" style={{ fontSize: 30, fontWeight: 800, color: tx.amount > 0 ? P.up : P.text }}>
+              <div className="mt-4" style={{ ...HEAVY_NUM, fontSize: 30, color: tx.amount > 0 ? P.up : P.text }}>
                 {tx.amount > 0 ? "+" : "−"}{money(Math.abs(tx.amount))}
               </div>
             )}
@@ -3113,8 +3230,8 @@ export default function Phantom() {
             <Grab mb={12} />
             <div className="text-center" style={{ fontSize: 20, fontWeight: 800 }}>{betOn.label}</div><button className="ph-unit-toggle" onClick={() => setChatRoom({ id: "prediction:" + betOn.market, symbol: "BTC", name: betOn.market, type: "Prediction", bet: { ...betOn } })}>Join market chat · Demo</button>
             <div className="text-center" style={{ color: P.dim, fontSize: M.rowSub }}>{betOn.market} · {betOn.p}% · {money(w.cash)} available</div>
-            <div className="text-center" style={{ fontSize: "clamp(1.9rem,8.5vw,2.4rem)", fontWeight: 800, color: entry === "" ? P.dim : P.text }}>${shownEntry}</div>
-            <div className="text-center" style={{ color: P.up, fontSize: M.rowSub, fontWeight: 700 }}>Pays {money((parseFloat(entry) || 0) / (betOn.p / 100), 0)}</div>
+            <div className="text-center" style={{ ...HEAVY_NUM, fontSize: "clamp(1.9rem,8.5vw,2.4rem)", color: entry === "" ? P.dim : P.text }}>${shownEntry}</div>
+            <div className="text-center" style={{ ...HEAVY_NUM, color: P.up, fontSize: M.rowSub }}>Pays {money((parseFloat(entry) || 0) / (betOn.p / 100), 0)}</div>
             <Keypad onKey={press(setEntry)} />
             <button onClick={placeBet} disabled={num <= 0 || num > w.cash} className="mt-2.5 w-full rounded-full"
               style={{ background: num > 0 && num <= w.cash ? P.purple : P.card2, color: num > 0 && num <= w.cash ? "#0B0B0D" : P.dim, fontSize: 17, fontWeight: 800, height: 50 }}>Place prediction</button>
@@ -3173,8 +3290,8 @@ export default function Phantom() {
                         <div style={{ color: P.dim, fontSize: 15 }}>{p[1]} &nbsp;${p[3]} Vol</div>
                       </div>
                       <div className="text-right">
-                        <div style={{ fontSize: 17, fontWeight: 700 }}>{money(p[4], p[4] > 1000 ? 0 : 2)}</div>
-                        <div style={{ color: p[5] >= 0 ? P.up : P.down, fontSize: 15, fontWeight: 700 }}>{pctStr(p[5])}</div>
+                        <div style={{ ...HEAVY_NUM, fontSize: 17 }}>{money(p[4], p[4] > 1000 ? 0 : 2)}</div>
+                        <div style={{ ...HEAVY_NUM, color: p[5] >= 0 ? P.up : P.down, fontSize: 15 }}>{pctStr(p[5])}</div>
                       </div>
                     </button>
                   ))}
@@ -3362,12 +3479,12 @@ export default function Phantom() {
                     <div className="flex flex-col justify-between" style={{ background: P.card, borderRadius: 28, minHeight: 124, height: "min(143px, 20vh)", padding: 20, boxShadow: P.edge }}>
                       <div style={{ color: "#8E8E93", fontSize: 21, fontWeight: 700, lineHeight: 1 }}>You Receive</div>
                       <div className="flex items-center justify-between gap-3">
-                        <span className="min-w-0 flex-1 truncate" style={{ fontSize: 40, fontWeight: 700, letterSpacing: "-0.03em", lineHeight: 1, color: out > 0 ? P.text : "#6E6E73" }}>
+                        <span className="min-w-0 flex-1 truncate" style={{ ...HEAVY_NUM, fontSize: 40, lineHeight: 1, color: out > 0 ? P.text : "#6E6E73" }}>
                           {out > 0 ? compact(out) : "0"}
                         </span>
                         {pill("recv")}
                       </div>
-                      <div className="text-right" style={{ color: "#8E8E93", fontSize: 20 }}>{money(out * recvPx)}</div>
+                      <div className="text-right" style={{ ...HEAVY_NUM, color: "#8E8E93", fontSize: 20 }}>{money(out * recvPx)}</div>
                     </div>
                   </div>
 

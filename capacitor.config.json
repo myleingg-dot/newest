@@ -1,6 +1,6 @@
 {
   "appId": "com.demo.phantomdemo",
-  "appName": "Phantom Demo",
+  "appName": "PhantomDemo",
   "webDir": "www",
   "server": { "androidScheme": "https" },
   "ios": { "contentInset": "never", "backgroundColor": "#000000" },

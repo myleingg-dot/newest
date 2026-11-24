@@ -2,7 +2,7 @@
   "name": "phantom-demo",
   "version": "1.0.0",
   "private": true,
-  "description": "Phantom Demo \u00e2\u20ac\u201d wallet UI simulation",
+  "description": "PhantomDemo \u2014 local wallet UI simulation",
   "devDependencies": {
     "@capacitor/cli": "^6.1.2",
     "esbuild": "0.28.2"
