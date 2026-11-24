@@ -2002,33 +2002,77 @@ export default function Phantom() {
               </div>
             )}
 
-            {/* perps strip */}
-            <div style={{ ...PAD, paddingTop: 30 }}><Head onTap={() => { setTab("Trade"); setTradeTab("Perps"); }}>Perps</Head></div>
+            {/* perps carousel */}
+            <div style={{ ...PAD, paddingTop: 30 }}><Head onTap={() => { setTab("Trade"); setTradeTab("Perps"); }} chev={23}>Perps</Head></div>
             <div className="flex gap-2.5 overflow-x-auto pb-1" style={{ scrollbarWidth: "none", ...PAD }}>
-              {[["BTC", "40x", 1.02], ["ETH", "25x", 2.23], ["HYPE", "20x", 1.74], ["SOL", "40x", 4.5]].map((p) => (
-                <button key={p[0]} onClick={() => { setTab("Trade"); setTradeTab("Perps"); }} className="shrink-0 text-left active:opacity-70"
-                  style={{ background: P.card, borderRadius: 22, width: 170, height: 143, padding: 16, boxShadow: P.edge }}>
-                  <Logo id={p[0]} size={44} />
-                  <div className="mt-3.5 flex items-center gap-2">
-                    <span style={{ fontSize: 20, fontWeight: 800 }}>{p[0]}</span>
-                    <span className="rounded-md" style={{ background: "#2A2A2E", color: "#D5D5DA", fontSize: 13, fontWeight: 700, padding: "3px 7px" }}>{p[1]}</span>
+              {[
+                { s: "BTC", sub: "$638.4M Shorts", long: 28, short: 72 },
+                { s: "ETH", sub: "$421.7M Shorts", long: 29, short: 71 },
+                { s: "SOL", sub: "$186.2M Shorts", long: 64, short: 36 },
+                { s: "HYPE", sub: "$94.8M Shorts", long: 41, short: 59 },
+              ].map((p) => (
+                <button key={p.s} onClick={() => { setTab("Trade"); setTradeTab("Perps"); }} className="shrink-0 text-left active:opacity-70"
+                  style={{ background: "#111114", borderRadius: 23, width: 316, padding: 17 }}>
+                  <div className="flex items-center" style={{ gap: 10 }}>
+                    <Logo id={p.s} size={35} />
+                    <div className="min-w-0 flex-1">
+                      <div style={{ fontSize: 18, fontWeight: 800, lineHeight: 1.1 }}>{p.s}</div>
+                      <div style={{ color: P.dim, fontSize: 13.5, fontWeight: 500, marginTop: 3 }}>{p.sub}</div>
+                    </div>
+                    <span className="shrink-0" style={{ background: "#2B0E12", color: "#FF3B4E", borderRadius: 11, padding: "7px 10px", fontSize: 14.5, fontWeight: 800, whiteSpace: "nowrap" }}>Bearish ↘</span>
                   </div>
-                  <div className="mt-1.5" style={{ color: p[2] >= 0 ? P.up : P.down, fontSize: 20, fontWeight: 600 }}>{pctStr(p[2])}</div>
+                  <div style={{ height: 1, background: "#222228", margin: "14px 0" }} />
+                  <div className="flex items-center" style={{ gap: 10 }}>
+                    <span style={{ color: P.text, fontSize: 15, fontWeight: 700, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{p.long}% Long</span>
+                    <div className="flex-1" style={{ height: 7, borderRadius: 999, background: "#3A141A", overflow: "hidden", display: "flex", justifyContent: "flex-end" }}>
+                      <div style={{ width: p.short + "%", height: "100%", borderRadius: 999, background: "#FF3B4E" }} />
+                    </div>
+                    <span style={{ color: "#FF3B4E", fontSize: 15, fontWeight: 700, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 72 }}>{p.short}% Short</span>
+                  </div>
                 </button>
               ))}
             </div>
 
             {/* predictions carousel */}
-            <div style={{ ...PAD, paddingTop: 30 }}><Head onTap={() => setTab("Predict")}>Predictions</Head></div>
+            <div style={{ ...PAD, paddingTop: 30 }}><Head onTap={() => setTab("Predict")} chev={23}>Predictions</Head></div>
             <div className="flex gap-2.5 overflow-x-auto pb-1" style={{ scrollbarWidth: "none", ...PAD }}>
-              {["2:45 AM CDT", "2:50 AM CDT", "2:55 AM CDT"].map((t, i) => (
-                <button key={t} onClick={() => setTab("Predict")} className="shrink-0 text-left active:opacity-70"
-                  style={{ background: P.card, borderRadius: M.radius, width: 244, padding: 16 }}>
-                  <Logo id="BTC" size={52} />
-                  <div className="mt-3.5" style={{ fontSize: 19, fontWeight: 800 }}>BTC Up or Down • 5m</div>
-                  <div className="mt-0.5" style={{ color: P.dim, fontSize: 17 }}>{t}</div>
-                </button>
-              ))}
+              <button onClick={() => setTab("Predict")} className="shrink-0 text-left active:opacity-70"
+                style={{ background: "#111114", borderRadius: 23, width: 316, padding: 17 }}>
+                <div className="flex items-center" style={{ gap: 8 }}>
+                  <Logo id="BTC" size={19} />
+                  <span style={{ fontSize: 16.5, fontWeight: 800 }}>BTC 5min</span>
+                  <span className="ml-auto" style={{ color: P.dim, fontSize: 16.5, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontVariantNumeric: "tabular-nums" }}>00:20</span>
+                </div>
+                <div className="flex items-end justify-between" style={{ marginTop: 14 }}>
+                  <div>
+                    <div style={{ color: P.dim, fontSize: 13 }}>Up</div>
+                    <div style={{ color: "#22C55E", fontSize: 34, fontWeight: 800, lineHeight: 1.05, fontVariantNumeric: "tabular-nums" }}>99%</div>
+                  </div>
+                  <div className="flex items-end" style={{ gap: 6 }}>
+                    <div style={{ color: "#FF3B4E", fontSize: 34, fontWeight: 800, lineHeight: 1.05, fontVariantNumeric: "tabular-nums" }}>1%</div>
+                    <div style={{ color: P.dim, fontSize: 13, paddingBottom: 5 }}>Dow...</div>
+                  </div>
+                </div>
+                <div style={{ height: 8, borderRadius: 3, background: "#FF3B4E", overflow: "hidden", margin: "12px 0" }}>
+                  <div style={{ width: "99%", height: "100%", background: "#22C55E" }} />
+                </div>
+                <div className="flex items-center" style={{ gap: 8 }}>
+                  <span className="flex items-center justify-center" style={{ width: 16, height: 16, borderRadius: "50%", background: "#133322", flexShrink: 0 }}>
+                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#22C55E" }} />
+                  </span>
+                  <span style={{ color: P.dim, fontSize: 13.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>If Down wins: $100 → $10,...</span>
+                </div>
+              </button>
+              <button onClick={() => setTab("Predict")} className="shrink-0 text-left active:opacity-70"
+                style={{ background: "#111114", borderRadius: 23, width: 316, padding: 17 }}>
+                <div style={{ color: P.dim, fontSize: 15.5, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Champions Lea...</div>
+                {[["R", "#2E5BFF", "Real Mad..."], ["P", "#E03143", "PSV Eindh..."]].map(([letter, bg, name]) => (
+                  <div key={name} className="flex items-center" style={{ gap: 9, marginTop: 14 }}>
+                    <span className="flex items-center justify-center" style={{ width: 26, height: 26, borderRadius: "50%", background: bg, color: "#FFFFFF", fontSize: 13, fontWeight: 800, flexShrink: 0 }}>{letter}</span>
+                    <span style={{ color: P.text, fontSize: 15, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</span>
+                  </div>
+                ))}
+              </button>
             </div>
 
             {/* watchlist */}
