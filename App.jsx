@@ -439,16 +439,11 @@ function NoChart({ height = 250 }) {
   );
 }
 
-/* iOS rubber band: offset = L*d/(d+L) for finger travel d, where L is 0.55x the
-   viewport height. Matches both reference recordings — 183pt at a 300pt pull,
-   230pt at 450pt — where a fixed ceiling could never reach the deeper pull. */
-const rubber = (d) => {
-  const L = 0.55 * (window.innerHeight || 852);
-  return (L * d) / (d + L);
-};
-/* Brief hold on a completed refresh, then the pulled content settles. */
-const PULL_TAU = 140;
-const PULL_PAUSE = 200;
+/* The WebView supplies the native iOS elastic scroll/bounce at both edges.
+   These values only drive the refresh indicator and the refresh threshold;
+   they deliberately do not displace Home content a second time. */
+const PULL_THRESHOLD = 92;
+const PULL_FADE_TAU = 140;
 const tinyPrice = (n) => subPrice(n);
 
 function series(seed, up, len = 44) {
@@ -962,10 +957,13 @@ export default function Phantom() {
   const pullIndicatorRef = React.useRef(null);
   const pullScrollRef = React.useRef(null);
   const pullHoldRef = React.useRef(false);
-  const pullReleasePx = React.useRef(1);
   const pullPx = React.useRef(0);
   const pullRaf = React.useRef(null);
-  React.useEffect(() => () => { if (pullRaf.current) cancelAnimationFrame(pullRaf.current); }, []);
+  const pullTimer = React.useRef(null);
+  React.useEffect(() => () => {
+    if (pullRaf.current) cancelAnimationFrame(pullRaf.current);
+    if (pullTimer.current) clearTimeout(pullTimer.current);
+  }, []);
   const [refreshing, setRefreshing] = useState(false);
   const pullStart = React.useRef(null);
 
@@ -1539,31 +1537,47 @@ export default function Phantom() {
     pointerEvents: sheetLeaving ? "none" : "auto",
   };
 
-  /* Move Home content without re-rendering the large holdings list each frame. */
-  const setSpacer = (px) => {
-    pullPx.current = px;
-    if (spacerRef.current) spacerRef.current.style.height = px + "px";
+  /* The WebView handles the elastic top/bottom bounce. Touch tracking only
+     drives the refresh indicator and decides when to start refreshing. */
+  const setPull = (d) => {
+    pullPx.current = d;
+    const progress = Math.max(0, Math.min(1, (d - 18) / (PULL_THRESHOLD - 18)));
     if (pullIndicatorRef.current) {
-      const progress = Math.max(0, Math.min(1, (px - 35) / 55));
-      pullIndicatorRef.current.style.opacity = String(pullHoldRef.current ? Math.max(0, Math.min(1, px / pullReleasePx.current)) : progress);
-      pullIndicatorRef.current.style.transform = `translateX(-50%) scale(${pullHoldRef.current ? 1 : 0.6 + progress * 0.4})`;
+      pullIndicatorRef.current.style.transition = "opacity 90ms linear, transform 90ms linear";
+      pullIndicatorRef.current.style.opacity = String(pullHoldRef.current ? 1 : progress);
+      pullIndicatorRef.current.style.transform = `translateX(-50%) scale(${0.6 + progress * 0.4})`;
     }
-    if (pullScrollRef.current) pullScrollRef.current.style.opacity = String(px > 2 ? (pullHoldRef.current ? 1 : Math.max(0, Math.min(1, (px - 28) / 48))) : 0);
+    if (pullScrollRef.current) pullScrollRef.current.style.opacity = String(d > 2 ? (pullHoldRef.current ? 1 : Math.max(0, Math.min(1, (d - 26) / 52))) : 0);
   };
-  const collapsePull = (refreshTriggered = false) => {
+  const fadePull = () => {
     if (pullRaf.current) cancelAnimationFrame(pullRaf.current);
-    pullHoldRef.current = refreshTriggered;
-    const from = pullPx.current;
-    pullReleasePx.current = Math.max(1, from);
-    if (from <= 0.5 || window.matchMedia("(prefers-reduced-motion: reduce)").matches) { setSpacer(0); pullHoldRef.current = false; pullRaf.current = null; return; }
+    const indicator = pullIndicatorRef.current;
+    const bar = pullScrollRef.current;
+    if (!indicator || !bar) return;
+    const from = parseFloat(indicator.style.opacity || "0") || 0;
+    const barFrom = parseFloat(bar.style.opacity || "0") || 0;
+    if (from <= 0.01 && barFrom <= 0.01) { pullRaf.current = null; return; }
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      indicator.style.opacity = "0";
+      indicator.style.transform = "translateX(-50%) scale(0.6)";
+      bar.style.opacity = "0";
+      pullRaf.current = null;
+      return;
+    }
     const now = () => (typeof performance !== "undefined" ? performance.now() : Date.now());
     const t0 = now();
-    const pause = refreshTriggered ? PULL_PAUSE : 0;
     const step = () => {
-      const t = now() - t0;
-      const h = t < pause ? from : from * Math.exp(-(t - pause) / PULL_TAU);
-      if (h < 0.5) { setSpacer(0); pullHoldRef.current = false; pullRaf.current = null; return; }
-      setSpacer(h);
+      const k = Math.exp(-(now() - t0) / PULL_FADE_TAU);
+      indicator.style.opacity = String(from * k);
+      indicator.style.transform = `translateX(-50%) scale(${0.6 + (from * k) * 0.4})`;
+      bar.style.opacity = String(barFrom * k);
+      if (from * k < 0.01 && barFrom * k < 0.01) {
+        indicator.style.opacity = "0";
+        indicator.style.transform = "translateX(-50%) scale(0.6)";
+        bar.style.opacity = "0";
+        pullRaf.current = null;
+        return;
+      }
       pullRaf.current = requestAnimationFrame(step);
     };
     pullRaf.current = requestAnimationFrame(step);
@@ -1572,23 +1586,38 @@ export default function Phantom() {
   const onPullStart = (e) => {
     if (tab !== "Home" || window.scrollY > 2 || sheet || radial || drawer) return;
     if (pullRaf.current) { cancelAnimationFrame(pullRaf.current); pullRaf.current = null; }
-    pullHoldRef.current = false;
-    setSpacer(0); // never inherit a stale depth across a tab switch
+    if (pullTimer.current) { clearTimeout(pullTimer.current); pullTimer.current = null; }
+    pullHoldRef.current = refreshing;
     pullStart.current = e.touches ? e.touches[0].clientY : e.clientY;
+    if (!refreshing) { pullPx.current = 0; setPull(0); }
   };
   const onPullMove = (e) => {
     if (pullStart.current == null) return;
     const y = e.touches ? e.touches[0].clientY : e.clientY;
     const d = y - pullStart.current;
-    if (d > 0 && window.scrollY <= 2) setSpacer(rubber(d));
-    else if (d < 0) { pullStart.current = null; collapsePull(); }
+    if (d > 0 && window.scrollY <= 2) {
+      if (d >= PULL_THRESHOLD) pullHoldRef.current = true;
+      setPull(d);
+    } else if (d < 0) { pullStart.current = null; if (!refreshing) fadePull(); }
   };
   const onPullEnd = () => {
     if (pullStart.current == null) return;
     pullStart.current = null;
-    const refreshing_ = pullPx.current > 70;
-    if (refreshing_ && !refreshing) doRefresh();
-    collapsePull(refreshing_);
+    const d = pullPx.current;
+    if (d >= PULL_THRESHOLD && !refreshing) {
+      pullHoldRef.current = true;
+      setPull(d);
+      haptic("light");
+      pullTimer.current = setTimeout(async () => {
+        await doRefresh();
+        pullHoldRef.current = false;
+        fadePull();
+        pullTimer.current = null;
+      }, 110);
+    } else if (!refreshing) {
+      pullHoldRef.current = false;
+      fadePull();
+    }
   };
   const customs = w.customs || {};
   const applyLive = (t) => (live[t.sym] ? { ...t, price: live[t.sym].price, chg: live[t.sym].chg } : t);
