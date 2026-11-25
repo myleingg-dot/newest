@@ -441,9 +441,16 @@ function NoChart({ height = 250 }) {
 
 /* The WebView supplies the native iOS elastic scroll/bounce at both edges.
    These values only drive the refresh indicator and the refresh threshold;
-   they deliberately do not displace Home content a second time. */
+   they deliberately do not displace Home content a second time. The ratio
+   curve gives the indicator iOS-style resistance as the pull gets deeper. */
 const PULL_THRESHOLD = 92;
-const PULL_FADE_TAU = 140;
+const PULL_HOLD_MS = 120;
+const PULL_FADE_TAU = 180;
+const pullResistance = (d) => {
+  const L = PULL_THRESHOLD * 1.35;
+  return (L * d) / (d + L);
+};
+const pullProgress = (d) => Math.max(0, Math.min(1, pullResistance(d) / pullResistance(PULL_THRESHOLD)));
 const tinyPrice = (n) => subPrice(n);
 
 function series(seed, up, len = 44) {
@@ -966,6 +973,8 @@ export default function Phantom() {
   }, []);
   const [refreshing, setRefreshing] = useState(false);
   const pullStart = React.useRef(null);
+  const pullStartX = React.useRef(null);
+  const pullAxis = React.useRef(null);
 
   // Portrait lock. The real orientation lock works where it is supported; iOS
   // ignores it, so input.css counter-rotates #rot by the live screen angle.
@@ -1541,13 +1550,14 @@ export default function Phantom() {
      drives the refresh indicator and decides when to start refreshing. */
   const setPull = (d) => {
     pullPx.current = d;
-    const progress = Math.max(0, Math.min(1, (d - 18) / (PULL_THRESHOLD - 18)));
+    const progress = pullProgress(d);
+    const ready = pullHoldRef.current || d >= PULL_THRESHOLD;
     if (pullIndicatorRef.current) {
       pullIndicatorRef.current.style.transition = "opacity 90ms linear, transform 90ms linear";
-      pullIndicatorRef.current.style.opacity = String(pullHoldRef.current ? 1 : progress);
-      pullIndicatorRef.current.style.transform = `translateX(-50%) scale(${0.6 + progress * 0.4})`;
+      pullIndicatorRef.current.style.opacity = String(ready ? 1 : progress);
+      pullIndicatorRef.current.style.transform = `translateX(-50%) scale(${ready ? 1 : 0.6 + progress * 0.4})`;
     }
-    if (pullScrollRef.current) pullScrollRef.current.style.opacity = String(d > 2 ? (pullHoldRef.current ? 1 : Math.max(0, Math.min(1, (d - 26) / 52))) : 0);
+    if (pullScrollRef.current) pullScrollRef.current.style.opacity = String(ready ? 1 : Math.max(0, Math.min(1, progress * 1.3)));
   };
   const fadePull = () => {
     if (pullRaf.current) cancelAnimationFrame(pullRaf.current);
@@ -1588,32 +1598,48 @@ export default function Phantom() {
     if (pullRaf.current) { cancelAnimationFrame(pullRaf.current); pullRaf.current = null; }
     if (pullTimer.current) { clearTimeout(pullTimer.current); pullTimer.current = null; }
     pullHoldRef.current = refreshing;
-    pullStart.current = e.touches ? e.touches[0].clientY : e.clientY;
+    const p = e.touches ? e.touches[0] : e;
+    pullStart.current = p.clientY;
+    pullStartX.current = p.clientX;
+    pullAxis.current = null;
     if (!refreshing) { pullPx.current = 0; setPull(0); }
   };
   const onPullMove = (e) => {
     if (pullStart.current == null) return;
-    const y = e.touches ? e.touches[0].clientY : e.clientY;
-    const d = y - pullStart.current;
-    if (d > 0 && window.scrollY <= 2) {
-      if (d >= PULL_THRESHOLD) pullHoldRef.current = true;
-      setPull(d);
-    } else if (d < 0) { pullStart.current = null; if (!refreshing) fadePull(); }
+    const p = e.touches ? e.touches[0] : e;
+    const dx = p.clientX - pullStartX.current;
+    const dy = p.clientY - pullStart.current;
+    if (pullAxis.current == null && Math.max(Math.abs(dx), Math.abs(dy)) > 6) {
+      pullAxis.current = Math.abs(dx) > Math.abs(dy) ? "h" : "v";
+      if (pullAxis.current === "h") {
+        pullStart.current = null;
+        if (!refreshing) fadePull();
+        return;
+      }
+    }
+    if (pullAxis.current === "h") return;
+    if (dy > 0 && window.scrollY <= 2) {
+      if (dy >= PULL_THRESHOLD && !pullHoldRef.current) {
+        pullHoldRef.current = true;
+        haptic("light");
+      }
+      setPull(dy);
+    } else if (dy < 0) { pullStart.current = null; if (!refreshing) fadePull(); }
   };
   const onPullEnd = () => {
     if (pullStart.current == null) return;
     pullStart.current = null;
+    pullAxis.current = null;
     const d = pullPx.current;
     if (d >= PULL_THRESHOLD && !refreshing) {
       pullHoldRef.current = true;
       setPull(d);
-      haptic("light");
       pullTimer.current = setTimeout(async () => {
         await doRefresh();
         pullHoldRef.current = false;
         fadePull();
         pullTimer.current = null;
-      }, 110);
+      }, PULL_HOLD_MS);
     } else if (!refreshing) {
       pullHoldRef.current = false;
       fadePull();
